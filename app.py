@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="다단 사출 게이트 타이머", layout="wide")
 
 st.title("🚀 다단 사출(Multi-Stage) 게이트 시간 계산기")
-st.info("각 구간별 속도를 기준으로 위치별 경과 시간을 정밀하게 계산합니다.")
+st.info("구간별 속도 변화를 그래프로 확인하고 게이트 시간을 정밀하게 계산합니다.")
 
 # --- 1. 사출 조건 설정 (다단 속도) ---
 st.subheader("📍 1. 다단 사출 조건 설정")
@@ -15,7 +16,7 @@ with col1:
     vp_pos = st.number_input("V-P 절환 위치 (mm)", value=20.0)
     
 st.markdown("---")
-st.write("🏃 **구간별 사출 속도 및 위치 설정** (1속 시작점은 계량위치입니다)")
+st.write("🏃 **구간별 사출 속도 및 위치 설정**")
 v_col1, v_col2, v_col3 = st.columns(3)
 
 with v_col1:
@@ -28,14 +29,35 @@ with v_col3:
     v3 = st.number_input("3속 속도 (mm/s)", value=10.0)
     st.caption(f"3속은 V-P 위치({vp_pos}mm)까지 진행됩니다.")
 
-# --- 구간별 소요 시간 미리 계산 ---
-# t = 거리 / 속도
+# --- 구간별 시간 및 그래프 데이터 준비 ---
 t1 = (start_pos - s1) / v1
 t2 = (s1 - s2) / v2
 t3 = (s2 - vp_pos) / v3
 total_calc_time = t1 + t2 + t3
 
-st.success(f"계산된 총 사출 시간: {total_calc_time:.3f} sec (1구간: {t1:.2f}s, 2구간: {t2:.2f}s, 3구간: {t3:.2f}s)")
+# 속도 그래프 생성 (Plotly)
+# 위치는 큰 값(계량)에서 작은 값(VP)으로 흐름
+fig = go.Figure()
+fig.add_trace(go.Scatter(
+    x=[start_pos, s1, s1, s2, s2, vp_pos],
+    y=[v1, v1, v2, v2, v3, v3],
+    mode='lines+markers',
+    line=dict(color='#1f77b4', width=3),
+    fill='tozeroy',
+    name='사출 속도'
+))
+
+fig.update_layout(
+    title="스크류 위치별 사출 속도 그래프",
+    xaxis_title="스크류 위치 (mm)",
+    yaxis_title="사출 속도 (mm/s)",
+    xaxis=dict(autorange="reversed"), # 사출 진행 방향에 맞춰 X축 반전
+    height=350,
+    margin=dict(l=20, r=20, t=50, b=20)
+)
+
+st.plotly_chart(fig, use_container_width=True)
+st.success(f"계산된 총 사출 시간: {total_calc_time:.3f} sec")
 
 # --- 시간 변환 함수 ---
 def get_time_at_pos(pos):
@@ -99,5 +121,3 @@ with right_col:
         st.dataframe(df, use_container_width=True, hide_index=True)
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("💾 결과 다운로드 (CSV)", csv, "multi_stage_results.csv")
-    else:
-        st.info("데이터를 입력하면 구간속도가 반영된 시간이 표시됩니다.")
