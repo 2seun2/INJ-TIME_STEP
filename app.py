@@ -5,108 +5,123 @@ import plotly.graph_objects as go
 # 페이지 설정
 st.set_page_config(page_title="다단 사출 게이트 계산기 (30 Gates)", layout="wide")
 
-st.title("⚙️ 다단 사출 게이트 시간 계산기 (30 Gates)")
-st.info("속도 구간별 위치를 기준으로 작동 시간을 정밀 계산합니다.")
+st.title("⚙️ 다단 사출 게이트 시간 계산기")
+st.markdown("---")
 
-# --- 1. 다단 사출 조건 설정 ---
-st.subheader("📍 1. 다단 사출 속도 프로파일 설정")
-with st.container():
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        start_pos = st.number_input("계량 완료 위치 (mm)", value=150.0)
-        v1 = st.number_input("1속 속도 (mm/s)", value=60.0)
-    with c2:
-        s1 = st.number_input("1속 종료 위치 (mm)", value=100.0)
-        v2 = st.number_input("2속 속도 (mm/s)", value=40.0)
-    with c3:
-        s2 = st.number_input("2속 종료 위치 (mm)", value=50.0)
-        v3 = st.number_input("3속 속도 (mm/s)", value=20.0)
+# ==========================================
+# [SECTION 1] 상단: 설정 입력(좌) vs 그래프(우)
+# ==========================================
+st.subheader("📍 1. 사출 조건 및 속도 프로파일")
 
-    vp_pos = st.number_input("V-P 절환 위치 (mm)", value=20.0)
+# 상단을 4:6 비율로 분할 (왼쪽: 입력, 오른쪽: 그래프)
+top_left, top_right = st.columns([0.4, 0.6], gap="medium")
 
-# --- 구간별 시간 계산 로직 ---
+with top_left:
+    st.markdown("#### 🛠️ 다단 속도 설정")
+    with st.container(border=True):
+        # 기본 위치 설정
+        c1, c2 = st.columns(2)
+        start_pos = c1.number_input("계량 완료 위치 (mm)", value=150.0)
+        vp_pos = c2.number_input("V-P 절환 위치 (mm)", value=20.0)
+        
+        st.markdown("---")
+        st.caption("구간별 속도 및 종료 위치")
+        
+        # 1속
+        c_v1, c_s1 = st.columns(2)
+        v1 = c_v1.number_input("1속 속도 (mm/s)", value=60.0)
+        s1 = c_s1.number_input("1속 종료 (mm)", value=100.0)
+        
+        # 2속
+        c_v2, c_s2 = st.columns(2)
+        v2 = c_v2.number_input("2속 속도 (mm/s)", value=40.0)
+        s2 = c_s2.number_input("2속 종료 (mm)", value=50.0)
+        
+        # 3속
+        c_v3 = st.columns(1)
+        v3 = c_v3.number_input("3속 속도 (mm/s)", value=20.0)
+
+# --- 계산 로직 (그래프 및 결과용) ---
 t1 = (start_pos - s1) / v1
 t2 = (s1 - s2) / v2
 t3 = (s2 - vp_pos) / v3
 total_time = t1 + t2 + t3
 
 def get_time(pos):
-    # 입력된 위치가 계량위치보다 크거나 VP위치보다 작으면 예외처리 가능하지만
-    # 여기서는 수식대로 계산합니다.
     if pos >= s1: return (start_pos - pos) / v1
     elif pos >= s2: return t1 + (s1 - pos) / v2
     else: return t1 + t2 + (s2 - pos) / v3
 
-# --- 속도 그래프 시각화 (요청사항 반영) ---
-fig = go.Figure()
+with top_right:
+    st.markdown("#### 📈 속도 프로파일 (Speed Graph)")
+    # 그래프 생성
+    fig = go.Figure()
 
-# 1. 속도 프로파일 그리기
-fig.add_trace(go.Scatter(
-    x=[start_pos, s1, s1, s2, s2, vp_pos],
-    y=[v1, v1, v2, v2, v3, v3],
-    mode='lines+markers', 
-    fill='tozeroy', 
-    name='Injection Speed',
-    line=dict(color='#1f77b4', width=3),
-    marker=dict(size=6)
-))
+    # 1. 속도 프로파일
+    fig.add_trace(go.Scatter(
+        x=[start_pos, s1, s1, s2, s2, vp_pos],
+        y=[v1, v1, v2, v2, v3, v3],
+        mode='lines+markers', 
+        fill='tozeroy', 
+        name='Speed',
+        line=dict(color='#1f77b4', width=3),
+        marker=dict(size=6)
+    ))
 
-# 2. V/P 절환위치 수직선 표시
-fig.add_vline(x=vp_pos, line_width=2, line_dash="dash", line_color="red")
+    # 2. V/P 절환위치 수직선
+    fig.add_vline(x=vp_pos, line_width=2, line_dash="dash", line_color="red")
+    fig.add_annotation(
+        x=vp_pos, y=v3 + (max(v1,v2,v3)*0.15),
+        text="<b>V/P 절환</b>", showarrow=True, arrowhead=2, arrowcolor="red",
+        font=dict(color="red", size=12)
+    )
 
-# 3. V/P 텍스트 라벨 추가
-fig.add_annotation(
-    x=vp_pos, y=v3 + (max(v1,v2,v3)*0.1), # 그래프 살짝 위에 표시
-    text="<b>V/P 절환위치</b>",
-    showarrow=True,
-    arrowhead=2,
-    arrowcolor="red",
-    font=dict(color="red", size=12)
-)
-
-# 4. 레이아웃 설정 (X축 반전: 오른쪽이 큰 숫자)
-fig.update_layout(
-    title="<b>SCREW POSITION vs SPEED</b>",
-    xaxis=dict(
-        title="<b>SCREW POSITION (mm)</b>", 
-        autorange="reversed", # 핵심: X축 반전 (우측이 큰 값)
-        gridcolor='lightgrey'
-    ),
-    yaxis=dict(
-        title="<b>SPEED (mm/s)</b>",
-        gridcolor='lightgrey'
-    ),
-    height=350, 
-    margin=dict(l=20, r=20, t=50, b=20),
-    plot_bgcolor='white'
-)
-st.plotly_chart(fig, use_container_width=True)
-st.success(f"계산된 예상 총 사출 시간: {total_time:.3f} sec")
+    # 3. 레이아웃 설정 (X축 반전 & 라벨 강조)
+    fig.update_layout(
+        title=dict(text="<b>SCREW POSITION vs SPEED</b>", font=dict(size=15)),
+        xaxis=dict(
+            title="<b>SCREW POSITION (mm)</b>", 
+            autorange="reversed", # 오른쪽이 큰 숫자
+            gridcolor='lightgrey',
+            title_font=dict(size=14)
+        ),
+        yaxis=dict(title="<b>SPEED (mm/s)</b>", gridcolor='lightgrey'),
+        height=380, # 높이 조정
+        margin=dict(l=20, r=20, t=40, b=20),
+        plot_bgcolor='white',
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.info(f"⏱️ 계산된 총 사출 시간: **{total_time:.3f} sec**")
 
 st.divider()
 
-# --- 2. 입력 및 결과 (2분할) ---
-left_col, right_col = st.columns([0.6, 0.4])
+# ==========================================
+# [SECTION 2] 하단: 게이트 입력(좌) vs 결과(우)
+# ==========================================
+left_col, right_col = st.columns([0.6, 0.4], gap="large")
 
 with left_col:
     st.subheader("📥 2. 게이트 위치 입력 (30 Gates)")
-    in_cols = st.columns(2) # 15개씩 2열 배치
-    gate_data = []
-    for i in range(1, 31):
-        target_col = in_cols[(i-1)//15]
-        with target_col:
-            r = st.columns([1, 2, 2])
-            r[0].markdown(f"<br>**G{i:02d}**", unsafe_allow_html=True)
-            op = r[1].text_input("Op", key=f"o{i}", placeholder="Open", label_visibility="collapsed")
-            cl = r[2].text_input("Cl", key=f"c{i}", placeholder="Close", label_visibility="collapsed")
-            
-            err = False
-            if op and cl:
-                try:
-                    # 오픈 위치가 클로즈 위치보다 작으면 에러 (사출은 큰수 -> 작은수)
-                    if float(op) <= float(cl): err = True
-                except: pass
-            gate_data.append({"id": i, "op": op, "cl": cl, "err": err})
+    
+    # 입력창 컨테이너
+    with st.container(border=True):
+        in_cols = st.columns(2) # 15개씩 2열
+        gate_data = []
+        for i in range(1, 31):
+            target_col = in_cols[(i-1)//15]
+            with target_col:
+                r = st.columns([1, 2, 2])
+                r[0].markdown(f"<div style='padding-top:10px;'><b>G{i:02d}</b></div>", unsafe_allow_html=True)
+                op = r[1].text_input("Op", key=f"o{i}", placeholder="Open", label_visibility="collapsed")
+                cl = r[2].text_input("Cl", key=f"c{i}", placeholder="Close", label_visibility="collapsed")
+                
+                err = False
+                if op and cl:
+                    try:
+                        if float(op) <= float(cl): err = True
+                    except: pass
+                gate_data.append({"id": i, "op": op, "cl": cl, "err": err})
 
 with right_col:
     st.subheader("📤 3. 환산 시간 결과")
@@ -121,11 +136,9 @@ with right_col:
     
     if results:
         df = pd.DataFrame(results)
-        # 테이블 높이 고정 및 표시
         st.dataframe(df, use_container_width=True, hide_index=True, height=600)
         
-        # 엑셀 다운로드
         csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("💾 결과 다운로드 (CSV)", csv, "injection_results_30g.csv", "text/csv")
+        st.download_button("💾 엑셀 다운로드 (CSV)", csv, "injection_results.csv", "text/csv", type="primary")
     else:
-        st.info("왼쪽에 데이터를 입력하면 결과가 표시됩니다.")
+        st.warning("왼쪽에 게이트 위치를 입력하세요.")
