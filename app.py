@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# 1. 페이지 설정 (반드시 코드 최상단에 위치)
+# 1. 페이지 설정
 st.set_page_config(page_title="다단 사출 게이트 계산기", layout="wide")
 
 st.title("⚙️ 다단 사출 게이트 시간 계산기")
@@ -24,19 +24,22 @@ with top_left:
         
         st.markdown("---")
         
-        # 0 입력 방지 및 예외 처리를 위해 step 설정
+        # 1속
         c_v1, c_s1 = st.columns(2)
         v1 = c_v1.number_input("1속 속도 (mm/s)", value=60.0, min_value=0.1, step=1.0, format="%.1f")
         s1 = c_s1.number_input("1속 종료 (mm)", value=100.0, step=1.0, format="%.1f")
         
+        # 2속
         c_v2, c_s2 = st.columns(2)
         v2 = c_v2.number_input("2속 속도 (mm/s)", value=40.0, min_value=0.1, step=1.0, format="%.1f")
         s2 = c_s2.number_input("2속 종료 (mm)", value=50.0, step=1.0, format="%.1f")
         
-        c_v3 = st.columns(1)
+        # 3속 (오류 수정된 부분: 리스트 인덱싱 [0] 추가 및 레이아웃 정렬)
+        # 위쪽과 줄을 맞추기 위해 columns(2)로 나누고 왼쪽 칸만 사용합니다.
+        c_v3, _ = st.columns(2) 
         v3 = c_v3.number_input("3속 속도 (mm/s)", value=20.0, min_value=0.1, step=1.0, format="%.1f")
 
-# --- 계산 로직 (0으로 나누기 방지) ---
+# --- 계산 로직 ---
 if v1 > 0 and v2 > 0 and v3 > 0:
     t1 = (start_pos - s1) / v1
     t2 = (s1 - s2) / v2
@@ -46,9 +49,7 @@ else:
     t1, t2, t3, total_time = 0, 0, 0, 0
 
 def get_time(pos):
-    # 속도가 0이거나 유효하지 않으면 0 반환
     if v1 <= 0 or v2 <= 0 or v3 <= 0: return 0
-    
     if pos >= s1: return (start_pos - pos) / v1
     elif pos >= s2: return t1 + (s1 - pos) / v2
     else: return t1 + t2 + (s2 - pos) / v3
@@ -85,7 +86,7 @@ with top_right:
         st.plotly_chart(fig, use_container_width=True)
         st.success(f"⏱️ 계산된 총 사출 시간: **{total_time:.3f} sec**")
     else:
-        st.error("⚠️ 속도는 0보다 커야 합니다. 설정값을 확인해주세요.")
+        st.error("⚠️ 속도는 0보다 커야 합니다.")
 
 st.divider()
 
@@ -110,10 +111,8 @@ with left_col:
                 err = False
                 if op and cl:
                     try:
-                        # 숫자 변환 시 공백 제거 및 예외 처리
                         if float(op) <= float(cl): err = True
-                    except ValueError:
-                        pass # 숫자가 아닌 값이 들어오면 무시
+                    except ValueError: pass
                 gate_data.append({"id": i, "op": op, "cl": cl, "err": err})
 
 with right_col:
@@ -122,13 +121,10 @@ with right_col:
     for g in gate_data:
         if g["op"] and g["cl"] and not g["err"]:
             try:
-                op_val = float(g["op"])
-                cl_val = float(g["cl"])
-                ot = get_time(op_val)
-                ct = get_time(cl_val)
+                ot = get_time(float(g["op"]))
+                ct = get_time(float(g["cl"]))
                 results.append({"Gate": f"G{g['id']:02d}", "Open(s)": round(ot, 3), "Close(s)": round(ct, 3)})
-            except ValueError:
-                continue
+            except ValueError: continue
     
     if results:
         df = pd.DataFrame(results)
