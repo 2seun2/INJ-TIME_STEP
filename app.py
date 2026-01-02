@@ -31,23 +31,54 @@ t3 = (s2 - vp_pos) / v3
 total_time = t1 + t2 + t3
 
 def get_time(pos):
+    # 입력된 위치가 계량위치보다 크거나 VP위치보다 작으면 예외처리 가능하지만
+    # 여기서는 수식대로 계산합니다.
     if pos >= s1: return (start_pos - pos) / v1
     elif pos >= s2: return t1 + (s1 - pos) / v2
     else: return t1 + t2 + (s2 - pos) / v3
 
-# --- 속도 그래프 시각화 ---
+# --- 속도 그래프 시각화 (요청사항 반영) ---
 fig = go.Figure()
+
+# 1. 속도 프로파일 그리기
 fig.add_trace(go.Scatter(
     x=[start_pos, s1, s1, s2, s2, vp_pos],
     y=[v1, v1, v2, v2, v3, v3],
-    mode='lines+markers', fill='tozeroy', name='Injection Speed',
-    line=dict(color='#1f77b4', width=3)
+    mode='lines+markers', 
+    fill='tozeroy', 
+    name='Injection Speed',
+    line=dict(color='#1f77b4', width=3),
+    marker=dict(size=6)
 ))
+
+# 2. V/P 절환위치 수직선 표시
+fig.add_vline(x=vp_pos, line_width=2, line_dash="dash", line_color="red")
+
+# 3. V/P 텍스트 라벨 추가
+fig.add_annotation(
+    x=vp_pos, y=v3 + (max(v1,v2,v3)*0.1), # 그래프 살짝 위에 표시
+    text="<b>V/P 절환위치</b>",
+    showarrow=True,
+    arrowhead=2,
+    arrowcolor="red",
+    font=dict(color="red", size=12)
+)
+
+# 4. 레이아웃 설정 (X축 반전: 오른쪽이 큰 숫자)
 fig.update_layout(
-    title="사출 속도 프로파일 (Speed vs Position)",
-    xaxis=dict(title="Screw Position (mm)", autorange="reversed"),
-    yaxis=dict(title="Speed (mm/s)"),
-    height=300, margin=dict(l=20, r=20, t=40, b=20)
+    title="<b>SCREW POSITION vs SPEED</b>",
+    xaxis=dict(
+        title="<b>SCREW POSITION (mm)</b>", 
+        autorange="reversed", # 핵심: X축 반전 (우측이 큰 값)
+        gridcolor='lightgrey'
+    ),
+    yaxis=dict(
+        title="<b>SPEED (mm/s)</b>",
+        gridcolor='lightgrey'
+    ),
+    height=350, 
+    margin=dict(l=20, r=20, t=50, b=20),
+    plot_bgcolor='white'
 )
 st.plotly_chart(fig, use_container_width=True)
 st.success(f"계산된 예상 총 사출 시간: {total_time:.3f} sec")
@@ -58,12 +89,11 @@ st.divider()
 left_col, right_col = st.columns([0.6, 0.4])
 
 with left_col:
-    st.subheader("📥 2. 게이트 위치 입력")
-    # 30개를 15개씩 2열로 배치하여 가독성 증대
-    in_cols = st.columns(2)
+    st.subheader("📥 2. 게이트 위치 입력 (30 Gates)")
+    in_cols = st.columns(2) # 15개씩 2열 배치
     gate_data = []
     for i in range(1, 31):
-        target_col = in_cols[(i-1)//15] # 15개마다 열 바꿈
+        target_col = in_cols[(i-1)//15]
         with target_col:
             r = st.columns([1, 2, 2])
             r[0].markdown(f"<br>**G{i:02d}**", unsafe_allow_html=True)
@@ -73,6 +103,7 @@ with left_col:
             err = False
             if op and cl:
                 try:
+                    # 오픈 위치가 클로즈 위치보다 작으면 에러 (사출은 큰수 -> 작은수)
                     if float(op) <= float(cl): err = True
                 except: pass
             gate_data.append({"id": i, "op": op, "cl": cl, "err": err})
@@ -90,10 +121,11 @@ with right_col:
     
     if results:
         df = pd.DataFrame(results)
+        # 테이블 높이 고정 및 표시
         st.dataframe(df, use_container_width=True, hide_index=True, height=600)
         
-        # 엑셀 다운로드 버튼
+        # 엑셀 다운로드
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("💾 결과 다운로드 (CSV)", csv, "injection_results_30g.csv", "text/csv")
     else:
-        st.info("데이터를 입력하면 결과가 표시됩니다.")
+        st.info("왼쪽에 데이터를 입력하면 결과가 표시됩니다.")
